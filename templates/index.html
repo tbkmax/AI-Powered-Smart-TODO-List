@@ -1,0 +1,369 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Smart TODO List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <style>
+        :root {
+            --canvas: #0a0a0a;
+            --canvas-soft: #1a1c20;
+            --canvas-card: #191919;
+            --canvas-mid: #363a3f;
+            --ink: #ffffff;
+            --body: #dadbdf;
+            --mute: #7d8187;
+            --hairline: #212327;
+            --sunset: #ff7a17;
+            --sunset-soft: #ffc285;
+            --dusk: #7c3aed;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            background:
+                radial-gradient(circle at 12% 0%, rgba(124, 58, 237, 0.16), transparent 32rem),
+                radial-gradient(circle at 92% 100%, rgba(255, 122, 23, 0.12), transparent 30rem),
+                var(--canvas);
+            color: var(--body);
+            font-family: Inter, system-ui, -apple-system, sans-serif;
+        }
+        .app-shell { max-width: 1680px; margin: 0 auto; }
+        .panel {
+            background: rgba(25, 25, 25, 0.92);
+            border: 1px solid var(--hairline);
+            border-radius: 8px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+        }
+        .eyebrow {
+            color: var(--mute);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            font-size: 12px;
+            letter-spacing: 1.2px;
+            line-height: 16px;
+            text-transform: uppercase;
+        }
+        .display-title {
+            color: var(--ink);
+            font-size: clamp(32px, 4vw, 48px);
+            font-weight: 400;
+            letter-spacing: -1.2px;
+            line-height: 1;
+        }
+        .summary { color: var(--mute); font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: 0.7px; }
+        .field {
+            background: var(--canvas-soft);
+            border: 1px solid var(--hairline);
+            border-radius: 8px;
+            color: var(--ink);
+            font-size: 16px;
+            line-height: 24px;
+            padding: 12px 16px;
+        }
+        .field::placeholder { color: var(--mute); }
+        .field:focus { border-color: var(--canvas-mid); outline: 2px solid rgba(255, 122, 23, 0.24); }
+        .pill-button {
+            background: var(--ink);
+            border: 1px solid var(--ink);
+            border-radius: 9999px;
+            color: #0a0a0a;
+            font-size: 14px;
+            line-height: 20px;
+            padding: 8px 16px;
+            transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+        }
+        .pill-button:hover { background: var(--sunset-soft); transform: translateY(-1px); }
+        .pill-button-dark {
+            background: transparent;
+            border-color: var(--canvas-mid);
+            color: var(--ink);
+        }
+        .pill-button-dark:hover { background: var(--ink); color: var(--canvas); }
+        .todo-row {
+            background: var(--canvas-soft);
+            border: 1px solid var(--hairline);
+            border-radius: 8px;
+            color: var(--body);
+            transition: border-color 160ms ease, background 160ms ease;
+        }
+        .todo-row:hover { background: #202226; border-color: var(--canvas-mid); }
+        .todo-row.agent-editing {
+            border-color: var(--sunset);
+            animation: agent-editing 1.2s ease-in-out infinite;
+        }
+        .todo-row.agent-highlight {
+            animation: agent-highlight 900ms ease-out;
+        }
+        @keyframes agent-editing {
+            0%, 100% { box-shadow: 0 0 0 rgba(255, 122, 23, 0); }
+            50% { box-shadow: 0 0 18px rgba(255, 122, 23, 0.28); }
+        }
+        @keyframes agent-highlight {
+            0% { background: rgba(255, 122, 23, 0.3); transform: translateX(4px); }
+            100% { background: var(--canvas-soft); transform: translateX(0); }
+        }
+        .todo-row input[type="checkbox"] { accent-color: var(--sunset); }
+        .todo-text { color: var(--ink); font-size: 16px; line-height: 24px; }
+        .todo-text-done { color: var(--mute); }
+        .todo-due { color: var(--mute); font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: 0.4px; }
+        .todo-due-overdue { color: var(--sunset); }
+        .delete-button { color: var(--mute); font-family: ui-monospace, monospace; font-size: 12px; text-transform: uppercase; }
+        .delete-button:hover { color: var(--sunset); }
+        .chat-window { background: rgba(10, 10, 10, 0.72); border: 1px solid var(--hairline); border-radius: 8px; }
+        .chat-message-user { background: var(--canvas-mid); color: var(--ink); }
+        .chat-message-assistant { background: rgba(124, 58, 237, 0.16); color: var(--body); border: 1px solid rgba(124, 58, 237, 0.28); }
+        .markdown-content { overflow-wrap: anywhere; }
+        .markdown-content p { margin: 0.35rem 0; }
+        .markdown-content p:first-child { margin-top: 0; }
+        .markdown-content p:last-child { margin-bottom: 0; }
+        .markdown-content ul { list-style: disc; margin: 0.5rem 0 0.5rem 1.25rem; }
+        .markdown-content ol { list-style: decimal; margin: 0.5rem 0 0.5rem 1.25rem; }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 { color: var(--ink); font-weight: 400; margin: 0.65rem 0 0.35rem; }
+        .markdown-content code { background: var(--canvas-soft); border-radius: 0.25rem; color: var(--sunset-soft); padding: 0.1rem 0.25rem; }
+        .markdown-content pre { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 0.35rem; color: var(--body); margin: 0.5rem 0; overflow-x: auto; padding: 0.65rem; }
+        .markdown-content pre code { background: transparent; padding: 0; }
+        .markdown-content table { border-collapse: collapse; display: block; margin: 0.75rem 0; max-width: 100%; min-width: 100%; overflow-x: auto; }
+        .markdown-content th, .markdown-content td { border: 1px solid var(--canvas-mid); padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; }
+        .markdown-content th { background: rgba(124, 58, 237, 0.24); color: var(--ink); font-weight: 500; white-space: nowrap; }
+        .markdown-content td { background: rgba(10, 10, 10, 0.24); min-width: 8rem; }
+        .markdown-content tr:nth-child(even) td { background: rgba(10, 10, 10, 0.4); }
+        .markdown-content a { color: var(--sunset-soft); text-decoration: underline; }
+        @media (max-width: 800px) {
+            body { overflow: auto; }
+            .app-shell { flex-direction: column; height: auto; }
+            .panel { width: 100%; }
+        }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+    <!-- Main Container -->
+    <div class="app-shell flex w-full h-full p-6 md:p-8 gap-6">
+        
+        <!-- Center/Left: TODO List -->
+        <div class="panel w-2/5 p-6 md:p-8 flex flex-col">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <div class="eyebrow mb-2">Personal command center</div>
+                    <h1 class="display-title">My TODO list</h1>
+                </div>
+                <span id="todo-summary" class="summary"></span>
+            </div>
+            
+            <!-- Add Todo Form -->
+            <form id="todo-form" class="flex flex-wrap gap-3 mb-6">
+                <input type="text" id="todo-input" placeholder="What needs to be done?" 
+                       class="field flex-1 min-w-[12rem]">
+                <label class="field flex items-center gap-2 text-sm">
+                    <span class="eyebrow">Due</span>
+                    <input type="datetime-local" id="todo-due-at"
+                           class="bg-transparent text-white focus:outline-none">
+                </label>
+                <button type="submit" class="pill-button">Add task</button>
+            </form>
+
+            <!-- Todo List -->
+            <ul id="todo-list" class="flex-1 overflow-y-auto space-y-3">
+                <!-- Todos will be injected here -->
+            </ul>
+        </div>
+
+        <!-- Right: AI Chat Box -->
+        <div class="panel w-3/5 p-6 md:p-8 flex flex-col">
+            <h2 class="text-xl text-white font-normal mb-1">
+                AI Productivity Coach
+            </h2>
+            <div id="agent-status" class="eyebrow mb-4">Ask. Plan. Execute.</div>
+            
+            <!-- Chat Messages -->
+            <div id="chat-messages" class="chat-window flex-1 overflow-y-auto mb-4 space-y-3 p-3">
+                <div id="chat-empty-state" class="text-sm text-gray-500 text-center mt-10">
+                    Ask me for advice on your tasks!
+                </div>
+            </div>
+
+            <!-- Chat Input -->
+            <form id="chat-form" class="flex gap-2">
+                <input type="text" id="chat-input" placeholder="Ask for advice..." class="field flex-1 min-w-0">
+                <button type="submit" class="pill-button pill-button-dark">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- TODO Logic ---
+        const todoForm = document.getElementById('todo-form');
+        const todoInput = document.getElementById('todo-input');
+        const todoDueAt = document.getElementById('todo-due-at');
+        const todoList = document.getElementById('todo-list');
+        const todoSummary = document.getElementById('todo-summary');
+        const agentStatus = document.getElementById('agent-status');
+
+        function formatDueDate(dueAt) {
+            if (!dueAt) return '';
+            const date = new Date(dueAt);
+            if (Number.isNaN(date.getTime())) return 'Invalid due date';
+            return `Due ${date.toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'})}`;
+        }
+
+        function isOverdue(todo) {
+            return todo.due_at && !todo.done && new Date(todo.due_at).getTime() < Date.now();
+        }
+
+        async function loadTodos(highlightIds = []) {
+            const res = await fetch('/api/todos');
+            const todos = await res.json();
+            todoList.innerHTML = '';
+            const openTodos = todos.filter(todo => !todo.done);
+            todoSummary.textContent = `${openTodos.length} open · ${todos.length - openTodos.length} done`;
+            todos.sort((a, b) => {
+                if (a.done !== b.done) return Number(a.done) - Number(b.done);
+                if (!a.due_at) return 1;
+                if (!b.due_at) return -1;
+                return new Date(a.due_at) - new Date(b.due_at);
+            });
+
+            todos.forEach(todo => {
+                const li = document.createElement('li');
+                li.className = 'todo-row flex items-center gap-3 p-3';
+                if (highlightIds.includes(todo.id)) {
+                    li.classList.add('agent-highlight');
+                }
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = todo.done;
+                checkbox.className = 'h-4 w-4 accent-blue-600';
+                checkbox.addEventListener('change', () => updateTodo(todo.id, {done: checkbox.checked}));
+
+                const content = document.createElement('div');
+                content.className = 'flex-1 min-w-0';
+                const text = document.createElement('p');
+                text.textContent = todo.text;
+                text.className = todo.done ? 'todo-text todo-text-done line-through' : 'todo-text';
+                const due = document.createElement('p');
+                due.textContent = formatDueDate(todo.due_at);
+                due.className = `todo-due mt-1 ${isOverdue(todo) ? 'todo-due-overdue' : ''}`;
+                content.append(text, due);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.textContent = 'Delete';
+                deleteButton.className = 'delete-button';
+                deleteButton.addEventListener('click', () => deleteTodo(todo.id));
+                li.append(checkbox, content, deleteButton);
+                todoList.appendChild(li);
+            });
+        }
+
+        todoForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!todoInput.value.trim()) return;
+            await fetch('/api/todos', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text: todoInput.value, due_at: todoDueAt.value || null})
+            });
+            todoInput.value = '';
+            todoDueAt.value = '';
+            loadTodos();
+        });
+
+        async function updateTodo(id, changes) {
+            const res = await fetch(`/api/todos/${id}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(changes)
+            });
+            if (!res.ok) {
+                alert('Unable to update this task.');
+            }
+            loadTodos();
+        }
+
+        async function deleteTodo(id) {
+            await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+            loadTodos();
+        }
+
+        function setAgentEditing(isEditing) {
+            agentStatus.textContent = isEditing ? 'Agent editing your list...' : 'Ask. Plan. Execute.';
+            agentStatus.classList.toggle('text-orange-300', isEditing);
+            todoList.classList.toggle('agent-list-editing', isEditing);
+            if (isEditing) {
+                todoList.querySelectorAll('.todo-row').forEach(row => row.classList.add('agent-editing'));
+            } else {
+                todoList.querySelectorAll('.todo-row').forEach(row => row.classList.remove('agent-editing'));
+            }
+        }
+
+        // --- Chat Logic ---
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+
+        function addMessage(text, isUser) {
+            const div = document.createElement('div');
+            div.className = `p-3 rounded-lg ${isUser ? 'max-w-[80%] chat-message-user ml-auto' : 'max-w-[96%] chat-message-assistant markdown-content'}`;
+            if (isUser) {
+                div.textContent = text;
+            } else {
+                div.innerHTML = DOMPurify.sanitize(marked.parse(text));
+            }
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = chatInput.value.trim();
+            if (!msg) return;
+            
+            document.getElementById('chat-empty-state')?.remove();
+            addMessage(msg, true);
+            chatInput.value = '';
+            setAgentEditing(true);
+            
+            // Show loading state
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'p-3 rounded-lg chat-message-assistant max-w-[96%]';
+            loadingDiv.innerText = 'Thinking...';
+            chatMessages.appendChild(loadingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message: msg})
+                });
+                const data = await res.json();
+                loadingDiv.remove();
+                if (!res.ok) {
+                    setAgentEditing(false);
+                    await loadTodos();
+                    addMessage(data.detail || 'The AI could not complete that request.', false);
+                    return;
+                }
+                const changedIds = (data.todo_changes || [])
+                    .map(change => change.todo && (change.todo.id || change.todo))
+                    .filter(Boolean);
+                setAgentEditing(false);
+                await loadTodos(changedIds);
+                addMessage(data.reply, false);
+            } catch (err) {
+                loadingDiv.remove();
+                setAgentEditing(false);
+                addMessage('Error connecting to AI.', false);
+            }
+        });
+
+        // Initial load
+        loadTodos();
+    </script>
+</body>
+</html>
